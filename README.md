@@ -8,6 +8,7 @@ Reusable GitHub Actions workflows for spyre-operator CI/CD pipeline.
 |----------|-------------|----------|
 | [pre-commit.yaml](.github/workflows/pre-commit.yaml) | Run pre-commit hooks | PR checks, code quality |
 | [unit-test.yaml](.github/workflows/unit-test.yaml) | Run Go unit tests and build | PR checks, continuous testing |
+| [build-image.yaml](.github/workflows/build-image.yaml) | Build and push Docker images for specific architectures | Image builds |
 | [version-patch.yaml](.github/workflows/version-patch.yaml) | Create a PR to bump the VERSION file | Manual version updates |
 | [create-release.yaml](.github/workflows/create-release.yaml) | Create GitHub release from VERSION file | Release automation |
 
@@ -68,6 +69,83 @@ secrets:
   - Required if your code depends on private Go modules
   - Falls back to `GITHUB_TOKEN` if not provided (limited access)
   - Create PAT at: Settings → Developer settings → Personal access tokens
+
+### Build Image Workflow
+
+```yaml
+uses: ibm-aiu/spyre-operator-actions/.github/workflows/build-image.yaml@main
+with:
+  runner: 'ubuntu-latest'             # GitHub runner (default: 'ubuntu-latest')
+  image_suffix: '-dev'                # Image tag suffix (default: '-dev')
+  registry: 'ghcr.io/ibm-aiu'         # Container registry (default: 'ghcr.io/ibm-aiu')
+# No secrets needed for pushing to ghcr.io in the same org - uses GITHUB_TOKEN automatically
+```
+
+For custom registries (Docker Hub, etc.):
+
+```yaml
+uses: ibm-aiu/spyre-operator-actions/.github/workflows/build-image.yaml@main
+with:
+  runner: 'ubuntu-latest'
+  registry: 'your-registry'
+secrets:
+  registry-username: ${{ secrets.DOCKER_USERNAME }}
+  registry-password: ${{ secrets.DOCKER_PASSWORD }}
+```
+
+**Inputs:**
+
+- `runner` (optional): GitHub runner to use for building the image
+  - Type: string
+  - Default: `'ubuntu-latest'`
+  - Examples: `'ubuntu-latest'`, `'ubuntu-24.04-arm64'`, `'self-hosted'`
+  - **Architecture is automatically detected from the runner**
+- `image_suffix` (optional): Suffix to append to IMAGE_TAG
+  - Type: string
+  - Default: `'-dev'`
+  - Example: `'-dev'` creates tags like `1.0.0-dev-amd64`
+- `registry` (optional): Container registry to push to
+  - Type: string
+  - Default: `'ghcr.io'`
+  - Examples: `'ghcr.io'`, `'docker.io'`, `'quay.io'`
+
+**Secrets:**
+
+- `registry-username` (optional): Container registry username
+  - **Not needed for ghcr.io** - uses `GITHUB_TOKEN` automatically
+  - Required for other registries (Docker Hub, Quay.io, etc.)
+- `registry-password` (optional): Container registry password or token
+  - **Not needed for ghcr.io** - uses `GITHUB_TOKEN` automatically
+  - Required for other registries (Docker Hub, Quay.io, etc.)
+
+**Permissions:**
+
+For pushing to GitHub Container Registry (ghcr.io):
+- `packages: write`: Required to push images to ghcr.io
+- Add to your workflow that calls this reusable workflow:
+  ```yaml
+  permissions:
+    packages: write
+  ```
+
+**Requirements:**
+
+- Repository must have a `VERSION` file containing semantic version (e.g., `1.0.0`)
+- Repository must have a `Makefile` with `docker-build-push` target
+- The `docker-build-push` target should use `REGISTRY`, and `IMAGE_TAG` environment variables
+
+**How it works:**
+
+The workflow automatically reads the version from the VERSION file, detects the architecture from the runner, and sets the following environment variables before running `make docker-build-push`:
+- `VERSION`: Read from VERSION file (e.g., `1.0.0`)
+- `ARCH`: Auto-detected from runner (e.g., `amd64` from `ubuntu-latest`, `arm64` from `ubuntu-24.04-arm64`)
+- `IMAGE_TAG`: Constructed as `$(VERSION)$(image_suffix)-$(ARCH)` (e.g., `1.0.0-dev-amd64`)
+
+**Supported architectures:**
+- `amd64` (x86_64)
+- `arm64` (aarch64)
+- `ppc64le`
+- `s390x`
 
 ### Version Patch Workflow
 
@@ -207,12 +285,57 @@ jobs:
     uses: ibm-aiu/spyre-operator-actions/.github/workflows/unit-test.yaml@main
 ```
 
+### Multi-Architecture Image Builds
+
+Build images for multiple architectures using a matrix strategy:
+
+```yaml
+jobs:
+  build-images:
+    permissions:
+      packages: write  # Required for pushing to ghcr.io
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-latest        # Builds amd64
+          - ubuntu-24.04-arm64   # Builds arm64
+    uses: ibm-aiu/spyre-operator-actions/.github/workflows/build-image.yaml@main
+    with:
+      runner: ${{ matrix.runner }}
+    # Architecture is automatically detected from the runner
+    # No secrets needed for ghcr.io - uses GITHUB_TOKEN automatically
+```
+
+Or build for specific architectures separately:
+
+```yaml
+jobs:
+  build-amd64:
+    permissions:
+      packages: write
+    uses: ibm-aiu/spyre-operator-actions/.github/workflows/build-image.yaml@main
+    with:
+      runner: ubuntu-latest  # Auto-detects amd64
+  
+  build-arm64:
+    permissions:
+      packages: write
+    uses: ibm-aiu/spyre-operator-actions/.github/workflows/build-image.yaml@main
+    with:
+      runner: ubuntu-24.04-arm64  # Auto-detects arm64
+```
+
 ## Requirements
 
 ### Workflow-Specific Requirements
 
 **Pre-commit and Unit Test:**
 - Repository must have `make test` and `make build` targets
+
+**Build Image:**
+- Repository must have a `Makefile` with `docker-build-push` target
+- The target should accept `IMAGE_TAG`, `VERSION`, and `ARCH` environment variables
+- Docker Buildx must be available (automatically set up by the workflow)
 
 **Create Release:**
 - Repository must have a `VERSION` file containing semantic version (e.g., `1.0.0`)

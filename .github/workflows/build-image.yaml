@@ -1,0 +1,122 @@
+# +-------------------------------------------------------------------+
+# | Copyright IBM Corp. 2025,2026                                     |
+# | SPDX-License-Identifier: Apache-2.0                               |
+# +-------------------------------------------------------------------+
+
+name: Build Image
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: 'GitHub runner to use for building the image'
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+      image_suffix:
+        description: 'Suffix to append to IMAGE_TAG (e.g., -dev)'
+        required: false
+        type: string
+        default: '-dev'
+      registry:
+        description: 'Container registry to push to (e.g., ghcr.io, docker.io)'
+        required: false
+        type: string
+        default: 'ghcr.io/ibm-aiu'
+    secrets:
+      registry-username:
+        description: 'Container registry username (not needed for ghcr.io with GITHUB_TOKEN)'
+        required: false
+      registry-password:
+        description: 'Container registry password or token (not needed for ghcr.io with GITHUB_TOKEN)'
+        required: false
+
+permissions:
+  contents: read
+  packages: write  # Crucial for pushing to ghcr.io
+
+jobs:
+  build-image:
+    runs-on: ${{ inputs.runner }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+    
+    - name: Get version from VERSION file
+      id: get_version
+      run: |
+        if [ ! -f VERSION ]; then
+          echo "ERROR: VERSION file not found"
+          exit 1
+        fi
+        
+        VERSION=$(cat VERSION)
+        
+        if [ -z "$VERSION" ]; then
+          echo "ERROR: VERSION file is empty"
+          exit 1
+        fi
+        
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "Version: ${VERSION}"
+    
+    - name: Detect architecture
+      id: detect_arch
+      run: |
+        case $(uname -m) in
+          x86_64)
+            ARCH="amd64"
+            ;;
+          aarch64)
+            ARCH="arm64"
+            ;;
+          ppc64le)
+            ARCH="ppc64le"
+            ;;
+          s390x)
+            ARCH="s390x"
+            ;;
+          *)
+            echo "ERROR: Unsupported architecture: $(uname -m)"
+            exit 1
+            ;;
+        esac
+        
+        echo "arch=${ARCH}" >> $GITHUB_OUTPUT
+        echo "Detected architecture: ${ARCH} from $(uname -m)"
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Log in to container registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ inputs.registry }}
+        username: ${{ secrets.registry-username || github.actor }}
+        password: ${{ secrets.registry-password || secrets.GITHUB_TOKEN }}
+    
+    - name: Build and push image
+      env:
+        REGISTRY: ${{ inputs.registry }}
+        VERSION: ${{ steps.get_version.outputs.version }}
+        ARCH: ${{ steps.detect_arch.outputs.arch }}
+        IMAGE_TAG: ${{ steps.get_version.outputs.version }}${{ inputs.image_suffix }}-${{ steps.detect_arch.outputs.arch }}
+      run: |
+        echo "Building image with:"
+        echo "  REGISTRY: ${REGISTRY}"
+        echo "  VERSION: ${VERSION}"
+        echo "  ARCH: ${ARCH}"
+        echo "  IMAGE_TAG: ${IMAGE_TAG}"
+        
+        make docker-build-push
+    
+    - name: Summary
+      run: |
+        echo "## Build Image Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Runner**: ${{ inputs.runner }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Architecture**: ${{ steps.detect_arch.outputs.arch }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Version**: ${{ steps.get_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Image Tag**: ${{ steps.get_version.outputs.version }}${{ inputs.image_suffix }}-${{ steps.detect_arch.outputs.arch }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Image built and pushed successfully" >> $GITHUB_STEP_SUMMARY
