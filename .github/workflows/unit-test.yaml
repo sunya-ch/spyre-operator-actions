@@ -9,10 +9,10 @@ on:
   workflow_call:
     inputs:
       go-version:
-        description: 'Go version to use'
+        description: 'Go version to use (leave empty to read from go.mod)'
         required: false
         type: string
-        default: '1.24.13'
+        default: ''
       goprivate:
         description: 'GOPRIVATE environment variable for private Go modules'
         required: false
@@ -24,6 +24,9 @@ on:
         required: false
 
 permissions: read-all
+
+env:
+  GOTOOLCHAIN: auto
 
 jobs:
   unit-test:
@@ -39,7 +42,8 @@ jobs:
     
     - uses: actions/setup-go@v6
       with:
-        go-version: ${{ inputs.go-version }}
+        go-version: ${{ inputs.go-version != '' && inputs.go-version || '' }}
+        go-version-file: ${{ inputs.go-version == '' && 'go.mod' || '' }}
     
     - name: Set GOPRIVATE
       if: ${{ inputs.goprivate != '' }}

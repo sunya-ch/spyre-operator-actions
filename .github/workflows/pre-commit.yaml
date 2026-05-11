@@ -25,6 +25,9 @@ on:
 
 permissions: read-all
 
+env:
+  GOTOOLCHAIN: auto
+
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
@@ -40,6 +43,11 @@ jobs:
     - uses: actions/setup-python@v5
       with:
         python-version: ${{ inputs.python-version }}
+    
+    - name: Setup Go
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: 'go.mod'
     
     - name: Set GOPRIVATE
       if: ${{ inputs.goprivate != '' }}
