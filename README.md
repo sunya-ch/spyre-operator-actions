@@ -11,6 +11,7 @@ Reusable GitHub Actions workflows for spyre-operator CI/CD pipeline.
 | [build-image.yaml](.github/workflows/build-image.yaml) | Build and push Docker images for specific architectures | Image builds |
 | [version-patch.yaml](.github/workflows/version-patch.yaml) | Create a PR to bump the VERSION file | Manual version updates |
 | [create-release.yaml](.github/workflows/create-release.yaml) | Create GitHub release from VERSION file | Release automation |
+| [sonarqube-scan.yaml](.github/workflows/sonarqube-scan.yaml) | Perform Sonar Qube scan on repisotiry | code quality |
 
 ## Workflow Inputs Reference
 
@@ -340,6 +341,33 @@ jobs:
 **Create Release:**
 - Repository must have a `VERSION` file containing semantic version (e.g., `1.0.0`)
 - The `VERSION` file should be updated before triggering the release workflow
+
+
+### SonarQube Scan Workflow
+
+**Triggers:**
+
+- `push`: Runs on pushes to the `main` branch
+- `pull_request`: Runs on PR events (opened, synchronize, reopened)
+- `workflow_dispatch`: Can be manually triggered
+
+**Required Secrets:**
+
+- `SONAR_TOKEN`: SonarQube authentication token
+- `SONAR_HOST_URL`: URL of your SonarQube server
+- `SONAR_TRUSTSTORE_BASE64`: Base64-encoded truststore file for SSL/TLS verification
+- `SONAR_CERTS_PASSWORD`: Password for the truststore file
+
+**Required Variables:**
+
+- `ORGID`: Organization identifier used in the project key
+
+**SonarQube Configuration:**
+
+The workflow automatically configures:
+- Project key: `${ORGID}-${repository_id}`
+- Project name: Repository full name
+- Source directory: Current working directory (`.`)
 
 ## License
 
