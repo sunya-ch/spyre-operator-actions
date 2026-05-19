@@ -13,6 +13,16 @@ on:
         required: false
         type: string
         default: 'ubuntu-latest'
+      pre_build_command:
+        description: "Optional command to run before docker build"
+        required: false
+        type: string
+        default: ""
+      dockerfile:
+        description: "Path to Dockerfile"
+        required: false
+        type: string
+        default: "./Dockerfile"
       image_suffix:
         description: 'Suffix to append to IMAGE_TAG (e.g., -dev)'
         required: false
@@ -23,6 +33,11 @@ on:
         required: false
         type: string
         default: 'ghcr.io/ibm-aiu'
+      image_name:
+        description: 'Name of the image'
+        required: false
+        type: string
+        default: ''
     secrets:
       registry-username:
         description: 'Container registry username (not needed for ghcr.io with GITHUB_TOKEN)'
@@ -30,64 +45,78 @@ on:
       registry-password:
         description: 'Container registry password or token (not needed for ghcr.io with GITHUB_TOKEN)'
         required: false
-
 permissions:
   contents: read
   packages: write  # Crucial for pushing to ghcr.io
 
 jobs:
-  build-image:
+  metadata:
     runs-on: ${{ inputs.runner }}
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      image_tag: ${{ steps.get_version.outputs.image_tag }}
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v6
-    
-    - name: Get version from VERSION file
-      id: get_version
-      run: |
-        if [ ! -f VERSION ]; then
-          echo "ERROR: VERSION file not found"
-          exit 1
-        fi
+      - name: Checkout code
+        uses: actions/checkout@v4
         
-        VERSION=$(cat VERSION)
-        
-        if [ -z "$VERSION" ]; then
-          echo "ERROR: VERSION file is empty"
-          exit 1
-        fi
-        
-        echo "version=${VERSION}" >> $GITHUB_OUTPUT
-        echo "Version: ${VERSION}"
-    
-    - name: Detect architecture
-      id: detect_arch
-      run: |
-        case $(uname -m) in
-          x86_64)
-            ARCH="amd64"
-            ;;
-          aarch64)
-            ARCH="arm64"
-            ;;
-          ppc64le)
-            ARCH="ppc64le"
-            ;;
-          s390x)
-            ARCH="s390x"
-            ;;
-          *)
-            echo "ERROR: Unsupported architecture: $(uname -m)"
+      - name: Get version from VERSION file
+        id: get_version
+        run: |
+          if [ ! -f VERSION ]; then
+            echo "ERROR: VERSION file not found"
             exit 1
-            ;;
-        esac
-        
-        echo "arch=${ARCH}" >> $GITHUB_OUTPUT
-        echo "Detected architecture: ${ARCH} from $(uname -m)"
+          fi
+
+          VERSION=$(cat VERSION)
+          if [ -z "$VERSION" ]; then
+            echo "ERROR: VERSION file is empty"
+            exit 1
+          fi
+
+          IMAGE_TAG="${VERSION}${{ inputs.image_suffix }}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "Version: ${VERSION}"
+          echo "Image tag: ${IMAGE_TAG}"
+
+  build-image:
+    needs: metadata
+    strategy:
+      fail-fast: false
+
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ${{ inputs.runner }}
+          - arch: s390x
+            platform: linux/s390x
+            runner:
+              - self-hosted
+              - Linux
+              - S390X
+    runs-on: ${{ matrix.runner }}
+    steps:
+    - name: Debug metadata outputs
+      run: |
+        echo "VERSION=${{ needs.metadata.outputs.version }}"
+        echo "IMAGE_TAG=${{ needs.metadata.outputs.image_tag }}"
+    - name: Checkout code
+      uses: actions/checkout@v4
     
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
-    
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version-file: go.mod
+
+    - name: Run pre-build command
+      if: ${{ inputs.pre_build_command != '' }}
+      run: ${{ inputs.pre_build_command }}
+
     - name: Log in to container registry
       uses: docker/login-action@v3
       with:
@@ -95,28 +124,45 @@ jobs:
         username: ${{ secrets.registry-username || github.actor }}
         password: ${{ secrets.registry-password || secrets.GITHUB_TOKEN }}
     
-    - name: Build and push image
-      env:
-        REGISTRY: ${{ inputs.registry }}
-        VERSION: ${{ steps.get_version.outputs.version }}
-        ARCH: ${{ steps.detect_arch.outputs.arch }}
-        IMAGE_TAG: ${{ steps.get_version.outputs.version }}${{ inputs.image_suffix }}-${{ steps.detect_arch.outputs.arch }}
-      run: |
-        echo "Building image with:"
-        echo "  REGISTRY: ${REGISTRY}"
-        echo "  VERSION: ${VERSION}"
-        echo "  ARCH: ${ARCH}"
-        echo "  IMAGE_TAG: ${IMAGE_TAG}"
-        
-        make docker-build-push
-    
+    - name: Build and push multi-arch image
+      uses: docker/build-push-action@v6
+      with:
+          context: .
+          file: ${{ inputs.dockerfile }}
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ inputs.registry }}/${{ inputs.image_name }}:${{ needs.metadata.outputs.image_tag }}-${{ matrix.arch }}
     - name: Summary
       run: |
         echo "## Build Image Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "- **Runner**: ${{ inputs.runner }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Architecture**: ${{ steps.detect_arch.outputs.arch }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Version**: ${{ steps.get_version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Image Tag**: ${{ steps.get_version.outputs.version }}${{ inputs.image_suffix }}-${{ steps.detect_arch.outputs.arch }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Version**: ${{ needs.metadata.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Image Tag**: ${{ inputs.registry }}/${{ inputs.image_name }}:${{ needs.metadata.outputs.image_tag }}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "Image built and pushed successfully" >> $GITHUB_STEP_SUMMARY
+  manifest:
+    needs:
+      - metadata
+      - build-image
+
+    runs-on: ${{ inputs.runner }}
+
+    steps:
+    - name: Log in to container registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ inputs.registry }}
+        username: ${{ secrets.registry-username || github.actor }}
+        password: ${{ secrets.registry-password || secrets.GITHUB_TOKEN }}
+        
+    - name: Create and push multi-arch manifest
+      shell: bash
+      run: |
+        docker buildx imagetools create \
+        -t ${{ inputs.registry }}/${{ inputs.image_name }}:${{ needs.metadata.outputs.image_tag }} \
+        ${{ inputs.registry }}/${{ inputs.image_name }}:${{ needs.metadata.outputs.image_tag }}-amd64 \
+        ${{ inputs.registry }}/${{ inputs.image_name }}:${{ needs.metadata.outputs.image_tag }}-s390x
+
+    - name: Inspect manifest
+      run: |
+        docker buildx imagetools inspect \
+        ${{ inputs.registry }}/${{ inputs.image_name }}:${{ needs.metadata.outputs.image_tag }}
