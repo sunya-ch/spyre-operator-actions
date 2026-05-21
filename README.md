@@ -11,7 +11,7 @@ Reusable GitHub Actions workflows for spyre-operator CI/CD pipeline.
 | [build-image.yaml](.github/workflows/build-image.yaml) | Build and push Docker images for specific architectures | Image builds |
 | [version-patch.yaml](.github/workflows/version-patch.yaml) | Create a PR to bump the VERSION file | Manual version updates |
 | [create-release.yaml](.github/workflows/create-release.yaml) | Create GitHub release from VERSION file | Release automation |
-| [sonarqube-scan.yaml](.github/workflows/sonarqube-scan.yaml) | Perform Sonar Qube scan on repisotiry | code quality |
+| [sonarqube-scan.yaml](.github/workflows/sonarqube-scan.yaml) | Perform Sonar Qube scan on repository | code quality |
 
 ## Workflow Inputs Reference
 
@@ -353,12 +353,16 @@ jobs:
 
 **Required Secrets:**
 
+These are currently defined at the org level and inherited at the repo level.
+
 - `SONAR_TOKEN`: SonarQube authentication token
 - `SONAR_HOST_URL`: URL of your SonarQube server
 - `SONAR_TRUSTSTORE_BASE64`: Base64-encoded truststore file for SSL/TLS verification
 - `SONAR_CERTS_PASSWORD`: Password for the truststore file
 
 **Required Variables:**
+
+These are currently defined at the org level and inherited at the repo level.
 
 - `ORGID`: Organization identifier used in the project key
 
