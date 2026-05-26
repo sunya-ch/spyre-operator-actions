@@ -74,7 +74,13 @@ jobs:
             exit 1
           fi
 
-          IMAGE_TAG="${VERSION}${{ inputs.image_suffix }}"
+          # Append -dev only if not already present
+          if [[ "$VERSION" == *"${{ inputs.image_suffix }}" ]]; then
+            IMAGE_TAG="$VERSION"
+          else
+            IMAGE_TAG="${VERSION}${{ inputs.image_suffix }}"
+          fi
+          
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
           echo "Version: ${VERSION}"
@@ -105,6 +111,33 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
+    - name: Cleanup build resources (s390x only)
+      if: matrix.arch == 's390x'
+      shell: bash
+      run: |
+        echo "=== Disk before cleanup ==="
+        df -h
+        echo "=== Docker usage before cleanup ==="
+        docker system df || true
+        
+        # Remove stopped containers
+        docker container prune -f || true
+
+        # Remove dangling images
+        docker image prune -af || true
+
+        # Remove unused volumes
+        docker volume prune -f || true
+
+        # Remove buildx cache
+        docker builder prune -af || true
+        docker buildx prune -af || true
+
+        echo "=== Disk after cleanup ==="
+        df -h
+        echo "=== Docker usage after cleanup ==="
+        docker system df || true
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -139,6 +172,11 @@ jobs:
         echo "- **Version**: ${{ needs.metadata.outputs.version }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Image Tag**: ${{ inputs.registry }}/${{ inputs.image_name }}:${{ needs.metadata.outputs.image_tag }}-${{ matrix.arch }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
+    - name: Cleanup after build
+      if: always() && matrix.arch == 's390x'
+      run: |
+        docker builder prune -af || true
+        docker buildx prune -af || true
   manifest:
     needs:
       - metadata
