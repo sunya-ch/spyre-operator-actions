@@ -74,7 +74,13 @@ jobs:
             exit 1
           fi
 
-          IMAGE_TAG="${VERSION}${{ inputs.image_suffix }}"
+          # Append -dev only if not already present
+          if [[ "$VERSION" == *"${{ inputs.image_suffix }}" ]]; then
+            IMAGE_TAG="$VERSION"
+          else
+            IMAGE_TAG="${VERSION}${{ inputs.image_suffix }}"
+          fi
+          
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
           echo "Version: ${VERSION}"
