@@ -102,13 +102,13 @@ function patch_test_config() {
 			${YQ_CMD} ".${COMPONENT}.imagePullPolicy=\"IfNotPresent\"" ${TEST_CONFIG}
 
 			# If component is operator, also set catalog and bundle registry
-			if [[ ${COMPONENT} == "operator" ]]; then
+			if [[ ${COMPONENT} == "operator" ]] && [[ -n ${TEST_CATALOG_REGISTRY} ]] ; then
 				echo "Setting .catalog"
-				${YQ_CMD} ".catalog.repository=strenv(TEST_REGISTRY)" ${TEST_CONFIG}
+				${YQ_CMD} ".catalog.repository=strenv(TEST_CATALOG_REGISTRY)" ${TEST_CONFIG}
 				${YQ_CMD} ".catalog.version=strenv(TEST_TAG)" ${TEST_CONFIG}
 				${YQ_CMD} ".catalog.imagePullPolicy=\"IfNotPresent\"" ${TEST_CONFIG}
 				echo "Setting .bundle"
-				${YQ_CMD} ".bundle.repository=strenv(TEST_REGISTRY)" ${TEST_CONFIG}
+				${YQ_CMD} ".bundle.repository=strenv(TEST_CATALOG_REGISTRY)" ${TEST_CONFIG}
 				${YQ_CMD} ".bundle.version=strenv(TEST_TAG)" ${TEST_CONFIG}
 				${YQ_CMD} ".bundle.imagePullPolicy=\"IfNotPresent\"" ${TEST_CONFIG}
 			fi
