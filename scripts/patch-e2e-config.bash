@@ -96,10 +96,17 @@ function patch_test_config() {
 
 		# Set the registry for the mapped component
 		if [[ -n ${COMPONENT} ]]; then
-			echo "Setting .${COMPONENT}.repository to ${TEST_REGISTRY} and tag to ${TEST_TAG}"
-			${YQ_CMD} ".${COMPONENT}.repository=strenv(TEST_REGISTRY)" ${TEST_CONFIG}
-			${YQ_CMD} ".${COMPONENT}.version=strenv(TEST_TAG)" ${TEST_CONFIG}
-			${YQ_CMD} ".${COMPONENT}.imagePullPolicy=\"IfNotPresent\"" ${TEST_CONFIG}
+			if [[ ${COMPONENT} == "scheduler" ]] && [[ -n ${TEST_SECONDARY_SCHED_REGISTRY} ]] ; then
+				echo "Setting .${COMPONENT}.repository to ${TEST_SECONDARY_SCHED_REGISTRY} and tag to ${TEST_TAG}"
+				${YQ_CMD} ".${COMPONENT}.repository=strenv(TEST_SECONDARY_SCHED_REGISTRY)" ${TEST_CONFIG}
+				${YQ_CMD} ".${COMPONENT}.version=strenv(TEST_TAG)" ${TEST_CONFIG}
+				${YQ_CMD} ".${COMPONENT}.imagePullPolicy=\"IfNotPresent\"" ${TEST_CONFIG}
+			else
+				echo "Setting .${COMPONENT}.repository to ${TEST_REGISTRY} and tag to ${TEST_TAG}"
+				${YQ_CMD} ".${COMPONENT}.repository=strenv(TEST_REGISTRY)" ${TEST_CONFIG}
+				${YQ_CMD} ".${COMPONENT}.version=strenv(TEST_TAG)" ${TEST_CONFIG}
+				${YQ_CMD} ".${COMPONENT}.imagePullPolicy=\"IfNotPresent\"" ${TEST_CONFIG}
+			fi
 
 			# If component is operator, also set catalog and bundle registry
 			if [[ ${COMPONENT} == "operator" ]] && [[ -n ${TEST_CATALOG_REGISTRY} ]] ; then
