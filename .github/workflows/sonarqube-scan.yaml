@@ -23,6 +23,22 @@ jobs:
       with:
         fetch-depth: 0
 
+
+    - name: If a Go project, set it up
+      if: hashFiles('go.mod') != ''
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: 'go.mod'
+        cache: true
+
+    - name: Run tests with coverage if available
+      if: hashFiles('Makefile') != ''
+      run: |
+        if grep -qE "^test:" Makefile; then
+          make test
+        fi
+      continue-on-error: false
+
     - name: Create Truststore
       env:
         TRUSTSTORE: ${{ secrets.SONAR_TRUSTSTORE_BASE64 }}
@@ -41,9 +57,12 @@ jobs:
       uses: sonarsource/sonarqube-scan-action@59db25f34e16620e48ab4bb9e4a5dce155cb5432 # v8.0.0
       with:
         args: |
-          -Dsonar.projectKey=${{ vars.ORGID }}-${{ github.repository_id }}
+          -Dsonar.projectKey=${{ secrets.ORGID }}-${{ github.repository_id }}
           -Dsonar.projectName="${{ github.repository }}"
           -Dsonar.sources=.
+          -Dsonar.tests=.
+          -Dsonar.test.inclusions=**/*_test.go
+          -Dsonar.go.coverage.reportPaths=coverage.out
           -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }}
           -Dsonar.branch.name=${{ github.ref_name }}
           -Dsonar.scanner.truststorePath=${{ github.workspace }}/certs/castorevpcprod
@@ -54,9 +73,12 @@ jobs:
       uses: sonarsource/sonarqube-scan-action@59db25f34e16620e48ab4bb9e4a5dce155cb5432 # v8.0.0
       with:
         args: |
-          -Dsonar.projectKey=${{ vars.ORGID }}-${{ github.repository_id }}
+          -Dsonar.projectKey=${{ secrets.ORGID }}-${{ github.repository_id }}
           -Dsonar.projectName="${{ github.repository }}"
           -Dsonar.sources=.
+          -Dsonar.tests=.
+          -Dsonar.test.inclusions=**/*_test.go
+          -Dsonar.go.coverage.reportPaths=coverage.out
           -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }}
           -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
           -Dsonar.pullrequest.branch=${{ github.head_ref }}

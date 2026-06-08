@@ -354,16 +354,12 @@ jobs:
 **Required Secrets:**
 
 These are currently defined at the org level and inherited at the repo level.
+When using Depedabot, these also need to be defined at the orglevel as Dependabot secrets.
 
 - `SONAR_TOKEN`: SonarQube authentication token
 - `SONAR_HOST_URL`: URL of your SonarQube server
 - `SONAR_TRUSTSTORE_BASE64`: Base64-encoded truststore file for SSL/TLS verification
 - `SONAR_CERTS_PASSWORD`: Password for the truststore file
-
-**Required Variables:**
-
-These are currently defined at the org level and inherited at the repo level.
-
 - `ORGID`: Organization identifier used in the project key
 
 **SonarQube Configuration:**
@@ -372,6 +368,10 @@ The workflow automatically configures:
 - Project key: `${ORGID}-${repository_id}`
 - Project name: Repository full name
 - Source directory: Current working directory (`.`)
+
+**Implicit Dependency**
+
+It is assumed that `make test` will perform unit testing that results in a `coverage.out` file.
 
 ## License
 
