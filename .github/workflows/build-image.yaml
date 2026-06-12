@@ -133,13 +133,25 @@ jobs:
         docker builder prune -af || true
         docker buildx prune -af || true
 
+        # Remove builder other than default
+        for b in $(docker buildx ls --format '{{.Name}}' | sort -u); do
+          if [ "$b" != "default" ]; then
+            echo "Removing builder $b"
+            docker buildx rm -f "$b" || true
+          fi
+        done
+
         echo "=== Disk after cleanup ==="
         df -h
         echo "=== Docker usage after cleanup ==="
         docker system df || true
+        echo "==== Builder list after cleanup ===="
+        docker buildx ls
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
+      with:
+        cleanup: true
 
     - name: Set up Go
       uses: actions/setup-go@v4
