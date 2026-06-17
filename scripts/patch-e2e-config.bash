@@ -40,6 +40,8 @@ function patch_test_config() {
 		${YQ_CMD} '.defaultChannel=strenv(OPERATOR_CHANNEL)' ${TEST_CONFIG}
 	fi
 
+	# Publicly-available tag patch
+
 	if [[ -n ${OPERATOR_TAG} ]]; then
 		${YQ_CMD} '.operator.version=strenv(OPERATOR_TAG)' ${TEST_CONFIG}
 		${YQ_CMD} '.catalog.version=strenv(OPERATOR_TAG)' ${TEST_CONFIG}
@@ -65,6 +67,32 @@ function patch_test_config() {
 	if [[ -n ${DRA_DRIVER_TAG} ]]; then
 		${YQ_CMD} '.draDriver.version=strenv(DRA_DRIVER_TAG)' ${TEST_CONFIG}
 	fi
+
+	# Publicly-unavailable tag patch
+
+	if [[ -n ${DEVICE_PLUGIN_INIT_TAG} ]]; then
+		${YQ} eval -i '.devicePluginInit.version=strenv(DEVICE_PLUGIN_INIT_TAG)' ${TEST_CONFIG}
+	fi
+
+	if [[ -n ${EXPORTER_TAG} ]]; then
+		${YQ} eval -i '.exporter.version=strenv(EXPORTER_TAG)' ${TEST_CONFIG}
+		${YQ} eval -i '.mockUser.version=strenv(EXPORTER_TAG)' ${TEST_CONFIG}
+	fi
+
+	if [[ -n ${CARD_MGMT_TAG} ]]; then
+		${YQ} eval -i '.cardManagement.version=strenv(CARD_MGMT_TAG)' ${TEST_CONFIG}
+	fi
+
+	if [[ -n ${CARD_MGMT_RUNNER_IMAGE} ]]; then
+		${YQ} eval -i '.cardManagement.config.pfRunnerImage=strenv(CARD_MGMT_RUNNER_IMAGE)' ${TEST_CONFIG}
+		${YQ} eval -i '.cardManagement.config.vfRunnerImage=strenv(CARD_MGMT_RUNNER_IMAGE)' ${TEST_CONFIG}
+	fi
+
+	if [[ -n ${SPYRE_FILTER} ]]; then
+		${YQ} eval -i '.cardManagement.config.spyreFilter=strenv(SPYRE_FILTER)' ${TEST_CONFIG}
+	fi
+
+	# Registry patch
 
 	if [[ -n ${REGISTRY} ]]; then
 		echo "Replacing docker.io/spyre-operator with ${REGISTRY}"
