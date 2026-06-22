@@ -92,14 +92,17 @@ jobs:
     - name: Retrieve component versions
       if: steps.check_project.outputs.is_spyre_operator == 'true'
       id: component_versions
+      env:
+        BRANCH_NAME: ${{ github.ref_name }}
       run: |
         COMPONENTS=("spyre-device-plugin" "spyre-scheduler" "spyre-webhook-validator" "spyre-health-checker" "spyre-exporter" "dra-driver-spyre")
         FALLBACK_VERSION="$(cat VERSION)-dev"
         
         echo "Retrieving component versions..."
+        echo "Using branch: ${BRANCH_NAME}"
         echo "Fallback version: ${FALLBACK_VERSION}"
         for COMPONENT in "${COMPONENTS[@]}"; do
-          VERSION_URL="https://raw.githubusercontent.com/ibm-aiu/${COMPONENT}/refs/heads/main/VERSION"
+          VERSION_URL="https://raw.githubusercontent.com/ibm-aiu/${COMPONENT}/refs/heads/${BRANCH_NAME}/VERSION"
           echo "Checking ${COMPONENT}..."
           
           if VERSION=$(curl -sSf "${VERSION_URL}" 2>/dev/null); then
