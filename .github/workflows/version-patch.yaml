@@ -179,7 +179,7 @@ jobs:
           }}"
         signoff: true
         sign-commits: true
-        base: main
+        base: ${{ github.ref_name }}
         title: "chore: bump version to v${{ steps.increment_version.outputs.new_version
           }}"
         body: |
