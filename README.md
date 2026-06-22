@@ -12,6 +12,7 @@ Reusable GitHub Actions workflows for spyre-operator CI/CD pipeline.
 | [version-patch.yaml](.github/workflows/version-patch.yaml) | Create a PR to bump the VERSION file | Manual version updates |
 | [create-release.yaml](.github/workflows/create-release.yaml) | Create GitHub release from VERSION file | Release automation |
 | [sonarqube-scan.yaml](.github/workflows/sonarqube-scan.yaml) | Perform Sonar Qube scan on repository | code quality |
+| [auto-label-pr.yaml](.github/workflows/auto-label-pr.yaml) | Automatically label PRs based on title prefix | PR automation |
 
 ## Workflow Inputs Reference
 
@@ -249,6 +250,65 @@ secrets:
 
 - Repository must contain a `VERSION` file with semantic version (e.g., `1.0.0`)
 - The workflow checks if the tag already exists to avoid conflicts
+
+### Auto Label PR Workflow
+
+```yaml
+uses: ibm-aiu/spyre-operator-actions/.github/workflows/auto-label-pr.yaml@main
+# No inputs or secrets required - uses GITHUB_TOKEN automatically
+```
+
+**Triggers:**
+
+- `pull_request`: Automatically runs when PRs are opened, synchronized, reopened, or edited
+- `workflow_call`: Can be called from other workflows
+
+**Label Mapping:**
+
+The workflow automatically applies labels based on PR title prefixes:
+
+| PR Title Prefix | Label Applied | Description |
+|----------------|---------------|-------------|
+| `feat:` | `enhancement` | New features or enhancements |
+| `feat(major):` | `semver-major` | Breaking changes requiring major version bump |
+| `fix:` | `bug` | Bug fixes |
+| `ci:` or `chore:` | `chore` | CI/CD, tooling, and maintenance changes |
+
+**Behavior:**
+
+1. **Removes old labels**: Before applying new labels, removes any previously auto-applied labels (enhancement, semver-major, bug, chore)
+2. **Applies new labels**: Adds labels based on the current PR title prefix
+3. **Updates on title change**: When PR title is edited, automatically updates labels to match the new prefix
+4. **Preserves manual labels**: Only manages the 4 auto-applied labels; other labels added manually are not affected
+
+**Example:**
+
+```
+PR Title: "feat: add new authentication method"
+→ Applies: enhancement
+
+PR Title: "feat(major): redesign API endpoints"
+→ Applies: semver-major
+
+PR Title: "fix: resolve memory leak in controller"
+→ Applies: bug
+
+PR Title: "ci: update GitHub Actions versions"
+→ Applies: chore
+
+PR Title: "chore: update dependencies"
+→ Applies: chore
+```
+
+**Permissions:**
+
+- `pull-requests: write`: Required to add/remove labels
+- `contents: read`: Required to read PR information
+
+**Requirements:**
+
+- PR title should follow conventional commit format with prefix
+- Labels (enhancement, semver-major, bug, chore) should exist in the repository
 
 ## Advanced Usage
 

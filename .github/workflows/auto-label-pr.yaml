@@ -1,0 +1,116 @@
+# +-------------------------------------------------------------------+
+# | Copyright IBM Corp. 2025,2026                                     |
+# | SPDX-License-Identifier: Apache-2.0                               |
+# +-------------------------------------------------------------------+
+
+name: Auto Label PR from Title
+
+on:
+  workflow_call:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  label-pr:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Remove old auto-applied labels
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Define all possible auto-applied labels
+        AUTO_LABELS=("enhancement" "semver-major" "bug" "chore")
+        
+        # Get current PR labels
+        CURRENT_LABELS=$(gh pr view ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --json labels --jq '.labels[].name')
+        
+        # Remove any auto-applied labels that exist
+        for label in "${AUTO_LABELS[@]}"; do
+          if echo "$CURRENT_LABELS" | grep -q "^${label}$"; then
+            echo "Removing old label: $label"
+            gh pr edit ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --remove-label "$label" || true
+          fi
+        done
+
+    - name: Determine labels from PR title
+      id: determine_labels
+      run: |
+        PR_TITLE="${{ github.event.pull_request.title }}"
+        LABELS=""
+        
+        echo "PR Title: $PR_TITLE"
+        
+        # Check for feat(major) first (more specific)
+        if echo "$PR_TITLE" | grep -q "^feat(major)"; then
+          LABELS="$LABELS semver-major"
+        fi
+        
+        # Check for feat (enhancement)
+        if echo "$PR_TITLE" | grep -q "^feat"; then
+          LABELS="$LABELS enhancement"
+        fi
+        
+        # Check for fix (bug)
+        if echo "$PR_TITLE" | grep -q "^fix"; then
+          LABELS="$LABELS bug"
+        fi
+        
+        # Check for ci or chore (chore)
+        if echo "$PR_TITLE" | grep -q "^ci\|^chore"; then
+          LABELS="$LABELS chore"
+        fi
+        
+        # Remove leading/trailing spaces and convert to comma-separated
+        LABELS=$(echo "$LABELS" | xargs | tr ' ' ',')
+        
+        echo "labels=$LABELS" >> $GITHUB_OUTPUT
+        echo "Labels to apply: $LABELS"
+
+    - name: Apply new labels
+      if: steps.determine_labels.outputs.labels != ''
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        LABELS="${{ steps.determine_labels.outputs.labels }}"
+        IFS=',' read -ra LABEL_ARRAY <<< "$LABELS"
+        
+        for label in "${LABEL_ARRAY[@]}"; do
+          echo "Adding label: $label"
+          gh pr edit ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --add-label "$label"
+        done
+
+    - name: Summary
+      run: |
+        echo "## Auto Label Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**PR #${{ github.event.pull_request.number }}**: ${{ github.event.pull_request.title }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### Process:" >> $GITHUB_STEP_SUMMARY
+        echo "1. Removed old auto-applied labels (enhancement, semver-major, bug, chore)" >> $GITHUB_STEP_SUMMARY
+        
+        LABELS="${{ steps.determine_labels.outputs.labels }}"
+        if [ -n "$LABELS" ]; then
+          echo "2. Applied new labels based on PR title" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Labels Applied:" >> $GITHUB_STEP_SUMMARY
+          IFS=',' read -ra LABEL_ARRAY <<< "$LABELS"
+          for label in "${LABEL_ARRAY[@]}"; do
+            echo "- \`$label\`" >> $GITHUB_STEP_SUMMARY
+          done
+        else
+          echo "2. No new labels applied (no matching PR title prefix found)" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### PR Title Prefixes Checked:" >> $GITHUB_STEP_SUMMARY
+        echo "- \`feat\` → enhancement" >> $GITHUB_STEP_SUMMARY
+        echo "- \`feat(major)\` → semver-major" >> $GITHUB_STEP_SUMMARY
+        echo "- \`fix\` → bug" >> $GITHUB_STEP_SUMMARY
+        echo "- \`ci\` or \`chore\` → chore" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**PR Title**: ${{ github.event.pull_request.title }}" >> $GITHUB_STEP_SUMMARY
