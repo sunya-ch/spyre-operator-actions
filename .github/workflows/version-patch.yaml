@@ -6,6 +6,25 @@
 name: Version Patch Workflow
 
 on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type (minor or major)'
+        required: true
+        type: string
+        default: 'minor'
+      operator_sdk_version:
+        description: 'Operator SDK version to install (only for spyre-operator projects)'
+        required: false
+        type: string
+        default: 'v1.38.0'
+    outputs:
+      branch_name:
+        description: 'The created branch name for the version patch'
+        value: ${{ jobs.version-patch.outputs.branch_name }}
+      new_version:
+        description: 'The new version number'
+        value: ${{ jobs.version-patch.outputs.new_version }}
   workflow_call:
     inputs:
       version_bump:
