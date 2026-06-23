@@ -170,7 +170,7 @@ jobs:
         
         echo "Updating release-artifacts.yaml with component versions..."
 
-        # Update component versions (always set, either from GitHub or fallback)
+        # Update component versions from VERSION files
         yq eval '.devicePlugin.version = "${{ steps.component_versions.outputs.spyre-device-plugin_version }}"' -i release-artifacts.yaml
         echo "  Updated devicePlugin to ${{ steps.component_versions.outputs.spyre-device-plugin_version }}"
 
@@ -185,6 +185,19 @@ jobs:
 
         yq eval '.draDriver.version = "${{ steps.component_versions.outputs.dra-driver-spyre_version }}"' -i release-artifacts.yaml
         echo "  Updated draDriver to ${{ steps.component_versions.outputs.dra-driver-spyre_version }}"
+
+        # Update non-public component versions including exporter, and devicePluginInit
+        # Use dev version in release artifacts, but use current version in test/config.yaml with quay.io/ibm-aiu public registry
+
+        yq eval '.exporter.version = "${{ steps.increment_version.outputs.new_version }}-dev"' -i release-artifacts.yaml
+        echo "  Updated exporter to ${{ steps.increment_version.outputs.new_version }}-dev in release-artifacts.yaml"
+        yq eval '.exporter.version = "${{ steps.current_version.outputs.version }}"' -i test/config.yaml
+        echo "  Updated exporter to ${{ steps.current_version.outputs.version }} in test/config.yaml"
+
+        yq eval '.devicePluginInit.version = "${{ steps.component_versions.outputs.spyre-device-plugin_version }}"' -i release-artifacts.yaml
+        echo "  Updated devicePluginInit to ${{ steps.component_versions.outputs.spyre-device-plugin_version }} in release-artifacts.yaml"
+        yq eval '.devicePluginInit.version = "${{ steps.current_version.outputs.version }}"' -i test/config.yaml
+        echo "  Updated devicePluginInit to ${{ steps.current_version.outputs.version }} in test/config.yaml"
 
         echo "release-artifacts.yaml update complete"
 
